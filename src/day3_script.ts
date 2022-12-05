@@ -77,9 +77,6 @@ function findDuplicates(a: string, b: string): string[] {
 }
 
 function parserToJSON(inputStr: string) {
-    let first_json: {
-        [key: number]: string
-    } = {}
     return inputStr.split("\r\n");
 }
 
