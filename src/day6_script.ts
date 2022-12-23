@@ -3,7 +3,6 @@ import * as fs from 'fs';
 const input = fs.readFileSync("../inputs/day6.txt", "utf-8");
 const input_test = "zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw";
 
-
 // part 1
 const chars_to_startOfPacket = countCharsNum_StartOfPacket(input);
 console.log("The number of characters to process before the start-of-packet marker is detected is", chars_to_startOfPacket);

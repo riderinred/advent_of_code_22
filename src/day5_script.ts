@@ -31,6 +31,7 @@ Object.entries(parsedMoves).forEach(([key, value]) => {
 })
 getAnswerCode("part 2");
 
+
 // functions
 function getAnswerCode(title: string) {
     let answer_code = "";
