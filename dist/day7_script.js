@@ -1,23 +1,30 @@
-import * as fs from 'fs';
-
-// BEGIN TYPES
-type BasicFile = { fileSize: number, fileName: string };
-type BasicDirectory = { dirSize: number, dirName: string };
-type FileStructureElement = {
-    directory: string,
-    data: BasicFile[],
-    subdirectories: FileStructureElement[]
-}
-type FileStructure = {
-    [key: string]: FileStructureElement
-}
-type Command = { keyword: string, params: string[] }
-type OutputObject = {writeOnNextCmd: boolean,
-    targetDirectory: string | FileStructureElement
-    targetDirectory_stages: string[],
-    foundDirectoryIndex?: number}
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs = __importStar(require("fs"));
 // END TYPES
-
 const commands = [
     "$ cd /",
     "$ ls",
@@ -1034,60 +1041,81 @@ const commands = [
     "128262 qcfsth.mlt",
     "120527 sqrb",
 ];
-
 // BEGIN GLOBALS
 const input = fs.readFileSync("../inputs/day7.txt", "utf-8");
 const testInput = fs.readFileSync("../inputs/day7_test.txt", "utf-8");
 const myTestInput = fs.readFileSync("../inputs/day7_myTest.txt", "utf-8");
+let fileStructure;
+let directoriesWithSizes;
 // END GLOBALS
-
-function main() {
-    //const inputPerLine = input.split("\r\n");
-    const fileStructure = parseLinesToFileStructure(commands);
-    const size_all = getSize_allDirectories(fileStructure, true);
-
+function setupFileStructure() {
+    const inputPerLine = input.split("\r\n");
+    fileStructure = parseLinesToFileStructure(inputPerLine);
+}
+function solvePartOne() {
+    directoriesWithSizes = getSize_allDirectories(fileStructure, true);
     let size_dirs_small = 0, count_dirs_small = 0;
-    for (let i = 0; i < size_all.length; i++) {
-        if (size_all[i].dirSize <= 100_000) {
-            size_dirs_small += size_all[i].dirSize;
+    for (let i = 0; i < directoriesWithSizes.length; i++) {
+        if (directoriesWithSizes[i].dirSize <= 100000) {
+            size_dirs_small += directoriesWithSizes[i].dirSize;
             count_dirs_small++;
         }
     }
     console.log(`There are ${count_dirs_small} small dirs with a total size of ${size_dirs_small}`);
 }
-
-function parseLinesToFileStructure(inputPerLine: string[]): FileStructure {
-    let fileStructure: FileStructure = {}
-    let output_buffer: string[] = [];
+function solvePartTwo() {
+    // calc needed space for total free of 30000000
+    const totalSpace = 70000000;
+    const freeSpace = totalSpace - directoriesWithSizes[0].dirSize;
+    const minSpaceToDelete = 30000000 - freeSpace;
+    let directoriesForPossibleDeletion = new Map();
+    for (let i = 0; i < directoriesWithSizes.length; i++) {
+        let curr_dir = directoriesWithSizes[i];
+        if (curr_dir.dirSize >= minSpaceToDelete) {
+            directoriesForPossibleDeletion.set(curr_dir.dirName, curr_dir.dirSize);
+        }
+    }
+    const minDirSize = Math.min(...directoriesForPossibleDeletion.values());
+    let directoriesForDeletion = [];
+    directoriesForPossibleDeletion.forEach((value, key) => {
+        if (value === minDirSize)
+            directoriesForDeletion.push(key);
+    });
+    for (let index in directoriesForDeletion) {
+        console.log(`Possible directory for deletion ${index} is ${directoriesForDeletion[index]} with size ${minDirSize}`);
+    }
+}
+function parseLinesToFileStructure(inputPerLine) {
+    let fileStructure = {};
+    let output_buffer = [];
     let entryCount_IOstructure = 0;
-    let nextOutputInfo: OutputObject = {
+    let curr_line_num = 0;
+    let nextOutputInfo = {
         writeOnNextCmd: false,
         targetDirectory: "",
         targetDirectory_stages: []
-    }
-    
+    };
     for (let i = 0; i < inputPerLine.length; i++) {
         const curr_line = inputPerLine[i];
-        let lineIsCmd: boolean;
-        curr_line[0] === "$" ? lineIsCmd=true : lineIsCmd=false;
-
+        curr_line_num = i;
+        let lineIsCmd;
+        curr_line[0] === "$" ? lineIsCmd = true : lineIsCmd = false;
         if (lineIsCmd) {
-            const cmd: Command = parseCmd(curr_line);
             if (output_buffer.length > 0 && nextOutputInfo.writeOnNextCmd) {
                 addBufferToStructure(output_buffer);
                 output_buffer = [];
             }
-            //if (!checkStructureHasDir(nextOutputInfo.targetDirectory as string)) addEmptyDirToStructure(nextOutputInfo.targetDirectory as string);
-            addEmptyDirToStructure(nextOutputInfo.targetDirectory as string);
-
+            if (!checkStructureHasDir(nextOutputInfo.targetDirectory))
+                addEmptyDirToStructure(nextOutputInfo.targetDirectory);
+            const cmd = parseCmd(curr_line);
             switch (cmd.keyword) {
                 case "cd":
                     //nextOutputInfo.directory = curr_line.slice(5);
                     if (cmd.params.includes("..")) {
-                        nextOutputInfo.targetDirectory = moveUpDirectory(nextOutputInfo.targetDirectory as string, true)
+                        nextOutputInfo.targetDirectory = moveUpDirectory(nextOutputInfo.targetDirectory, true);
                     }
                     else {
-                        nextOutputInfo.targetDirectory = moveToDirectory(nextOutputInfo.targetDirectory as string, cmd.params[0], true);
+                        nextOutputInfo.targetDirectory = moveToDirectory(nextOutputInfo.targetDirectory, cmd.params[0], true);
                     }
                     break;
                 case "ls":
@@ -1099,94 +1127,102 @@ function parseLinesToFileStructure(inputPerLine: string[]): FileStructure {
         }
         else if (!lineIsCmd) {
             output_buffer.push(curr_line);
-        } else {
+        }
+        else {
             throw new RangeError("limeIsCmd not boolean");
         }
     }
     // handle last output at end of file
     addBufferToStructure(output_buffer);
-
     return fileStructure;
-
     // local functions
-
     // directory navigation
-    function moveToDirectory(curr_dir:string, dest: string, verbose?: boolean): string {
-        if (dest === "." || dest === "..") throw new RangeError("invalid value for dest:  '.' || '..'");
+    function moveToDirectory(curr_dir, dest, verbose) {
+        if (dest === "." || dest === "..")
+            throw new RangeError("invalid value for dest:  '.' || '..'");
         nextOutputInfo.targetDirectory_stages.push(dest);
-
-        let out: string;
+        let out;
         if (curr_dir === "/" && dest !== "/") {
             out = curr_dir + dest;
-        } else if (dest === "/") {
+        }
+        else if (dest === "/") {
             out = "/";
-        } else {
+        }
+        else {
             out = curr_dir + "/" + dest;
         }
-        if (verbose) console.log(`Moving down from ${curr_dir} to ${out} at ${Object.entries(fileStructure).length}`);
+        if (verbose)
+            console.log(`Moving down from ${curr_dir} to ${out} for line ${curr_line_num} at entry ${Object.entries(fileStructure).length}`);
         return out;
     }
-    function moveUpDirectory(curr_dir:string, verbose?: boolean): string {
+    function moveUpDirectory(curr_dir, verbose) {
         if (nextOutputInfo.targetDirectory_stages.length === 0) {
             console.error(nextOutputInfo);
             throw new RangeError("nextOutputInfo.targetDirectory_stages is 0!");
         }
         nextOutputInfo.targetDirectory_stages.pop();
-
         let all_dirs = curr_dir.split("/");
         let out = "/";
-        for (let i = 0; i < all_dirs.length-1; i++) {
-            if (out.slice(-1) !== "/") out = out.concat("/");
+        for (let i = 0; i < all_dirs.length - 1; i++) {
+            if (out.slice(-1) !== "/")
+                out = out.concat("/");
             out = out.concat(all_dirs[i]);
         }
-
-        let outExists: boolean = checkStructureHasDir(out);
-        if (!outExists) throw new Error(`${out} does not exist!`);
-
-        if (verbose) console.log(`Moving up from ${curr_dir} to ${out} at ${Object.entries(fileStructure).length}`);
+        let outExists = checkStructureHasDir(out);
+        if (!outExists)
+            throw new Error(`${out} does not exist!`);
+        if (verbose)
+            console.log(`Moving up from ${curr_dir} to ${out} for line ${curr_line_num} at entry ${Object.entries(fileStructure).length}`);
         return out;
     }
-    function addBufferToStructure(output_buffer: string[]): void {
-        let filesArray: BasicFile[] = [];
-        let subdirArray: FileStructureElement[] = [];
+    function addBufferToStructure(output_buffer) {
+        let filesArray = [];
+        let subdirArray = [];
         deconstructBuffer(output_buffer);
-
-        if (!checkStructureHasDir(nextOutputInfo.targetDirectory as string)) {
-            addFilledDirToStructure(nextOutputInfo.targetDirectory as string, filesArray, subdirArray);
-        } else {
-            // nextOutputInfo.foundDirectoryIndex set by checkStructureHasDir()
-            if (filesArray.length > 0) fileStructure[nextOutputInfo.targetDirectory as string].data.push(...filesArray);
-            if (subdirArray.length > 0) fileStructure[nextOutputInfo.targetDirectory as string].subdirectories.push(...subdirArray);
+        if (!checkStructureHasDir(nextOutputInfo.targetDirectory)) {
+            addFilledDirToStructure(nextOutputInfo.targetDirectory, filesArray, subdirArray);
         }
-
+        else {
+            // nextOutputInfo.foundDirectoryIndex set by checkStructureHasDir()
+            if (filesArray.length > 0)
+                fileStructure[nextOutputInfo.targetDirectory].data.push(...filesArray);
+            if (subdirArray.length > 0)
+                fileStructure[nextOutputInfo.targetDirectory].subdirectories.push(...subdirArray);
+        }
         nextOutputInfo.writeOnNextCmd = false;
-
         // local functions
-        function deconstructBuffer(output_buffer: string[]) {
-            output_buffer.map((v,i,a) => {
+        function deconstructBuffer(output_buffer) {
+            output_buffer.map((v, i, a) => {
                 let temp = v.split(" ");
                 if (v.includes("dir")) {
-                    let subdir: FileStructureElement = {
+                    let subdir = {
                         directory: temp[1],
                         data: [],
                         subdirectories: []
-                    }
+                    };
                     subdirArray.push(subdir);
-                } else {
+                }
+                else {
                     let temp_size = Number(temp[0]);
                     let temp_name = temp[1];
-                    filesArray.push({fileSize: temp_size, fileName: temp_name});
+                    filesArray.push({ fileSize: temp_size, fileName: temp_name });
                 }
-            })
+            });
         }
     }
-
     // parse input
-    function parseCmd(curr_line: string): Command {
-        let out: Command = {keyword: "", params: []};
-        if (curr_line.includes("cd")) out.keyword = "cd";
-        if (curr_line.includes("ls")) out.keyword = "ls";
-
+    function parseCmd(curr_line) {
+        let out = { keyword: "", params: [] };
+        let line_parts = curr_line.split(" ");
+        if (line_parts[1].includes("cd"))
+            out.keyword = "cd";
+        else if (line_parts[1].includes("ls"))
+            out.keyword = "ls";
+        else
+            throw new RangeError(`line_parts[1] is neither "cd" nor "ls", received: ${line_parts[1]}`);
+        // if (curr_line.includes("cd")) out.keyword = "cd";
+        // if (curr_line.includes("ls")) out.keyword = "ls";
+        // above code here resulted in an error for input "$ cd blhrls" at input line 694. Took me days to pinpoint.
         switch (out.keyword) {
             case "cd":
                 out.params = curr_line.slice(5).split(" ");
@@ -1195,17 +1231,17 @@ function parseLinesToFileStructure(inputPerLine: string[]): FileStructure {
                 out.params = curr_line.slice(5).split(" ");
                 break;
         }
-
         return out;
     }
-
     // manipulate data structure
-    function addEmptyDirToStructure(dir: string): void {
-        if (dir === "") return;
+    function addEmptyDirToStructure(dir) {
+        if (dir === "")
+            return;
         addFilledDirToStructure(dir, [], []);
     }
-    function addFilledDirToStructure(dir: string, filesArray: BasicFile[], subdirArray: FileStructureElement[]): void {
-        if (dir === "") return;
+    function addFilledDirToStructure(dir, filesArray, subdirArray) {
+        if (dir === "")
+            return;
         //TODO disabling dirExists here because duplicate dirs exist on multiple levels
         const dirExists = false;
         //let dirExists: boolean = checkStructureHasDir(dir);
@@ -1217,143 +1253,142 @@ function parseLinesToFileStructure(inputPerLine: string[]): FileStructure {
                 subdirectories: subdirArray
             };
             entryCount_IOstructure++;
-        } else {
+        }
+        else {
             throw new Error(`attempted addFilledDirToStructure() for existing dir ${dir}`);
         }
     }
-
     // check data structure validity
-    function verifyDirHasSubdir(dir: string, caller?: string): void {
-        if (dir === "/") return;
-
-        let out: boolean = false;
-        let subdir: string = dir.split("/").slice(-1)[0];
+    function verifyDirHasSubdir(dir, caller) {
+        if (dir === "/")
+            return;
+        let out = false;
+        let subdir = dir.split("/").slice(-1)[0];
         let expected_parentDir = build_queried_parentDir(dir);
-
         Object.entries(fileStructure).forEach((valueO, index) => {
             fileStructure[valueO[0]].subdirectories.forEach((valueI) => {
                 if (valueI.directory === subdir) {
                     let actual_parentDir = valueO[1].directory;
-                    if (actual_parentDir === expected_parentDir) out = true;
+                    if (actual_parentDir === expected_parentDir)
+                        out = true;
                     //TODO  Did not found subdir for /tchbjclg/bljmjwm/mfpcdbg/trjgzcj/hngr/tpqrqtqj
                     // Moving down from /tchbjclg/bljmjwm/mfpcdbg/trjgzcj/hngr to /tchbjclg/bljmjwm/mfpcdbg/trjgzcj/hngr/tpqrqtqj at 121
                     // there are 3 preceding moves for 121, 4 moves successful at 114
                     // subdir is wrong! Should be /tchbjclg/bljmjwm/mfpcdbg/trjgzcj/hngr/tchbjclg/tpqrqtqj according to data structure
                     // checked from input. Program fault is somewhere after input line 671
-
-
                     //old error: for dir "/tchbjclg/bljmjwm/cqtmhzbf/ztcbmbw/cmwwg" the resulting expected_parentDir is "//bljmjwm/cqtmhzbf/ztcbmbw/cmwwg/tchbjclg"
                 }
-            })
-        })
-
+            });
+        });
         if (!out) {
             throw new Error(`Did not found subdir for ${dir}`);
         }
-        function build_queried_parentDir(current_dir: string): string {
+        function build_queried_parentDir(current_dir) {
             // check if subdir is once or multiple times in current_dir
             let all_elements = current_dir.split("/");
-            let temp: string = "/";
-            for (let i = 0; i < all_elements.length-1; i++) {
+            let temp = "/";
+            for (let i = 0; i < all_elements.length - 1; i++) {
                 temp += all_elements[i];
-                if (i>0 && (all_elements.length-i) > 2) temp += "/";
+                if (i > 0 && (all_elements.length - i) > 2)
+                    temp += "/";
             }
-            if (temp.length>1 && temp[temp.length-1] === "/") temp = temp.slice(0, -1);
+            if (temp.length > 1 && temp[temp.length - 1] === "/")
+                temp = temp.slice(0, -1);
             if (temp[0] === "/" && temp[1] === "/") {
-                throw new Error(`queried_parentDir starting with // for ${temp}`)
+                throw new Error(`queried_parentDir starting with // for ${temp}`);
             }
-            if (temp === undefined) throw new Error(`output is undefined for input ${current_dir}`);
+            if (temp === undefined)
+                throw new Error(`output is undefined for input ${current_dir}`);
             return temp;
         }
     }
-    function checkStructureHasDir(dir: string): boolean {
-        let out: boolean = false;
+    function checkStructureHasDir(dir) {
+        let out = false;
         Object.entries(fileStructure).forEach((val, ind) => {
             if (val[1].directory === dir) {
                 nextOutputInfo.foundDirectoryIndex = ind;
                 out = true;
                 return out;
             }
-        })
+        });
         return out;
     }
 }
-
-function getDirectorySize_shallow(dir: string, fileStructure: { [key: number]: FileStructureElement }, verbose?: boolean, ignoreSubDirs?:boolean): number {
+function getDirectorySize_shallow(dir, fileStructure, verbose, ignoreSubDirs) {
     // find dir in IOstructure
     let index_firstDepth = "init";
     for (let ind in fileStructure) {
-        if (fileStructure[ind].directory === dir) index_firstDepth = ind;
+        if (fileStructure[ind].directory === dir)
+            index_firstDepth = ind;
     }
-    if (index_firstDepth === "init") throw new Error(`directory ${dir} not found!`);
-
+    if (index_firstDepth === "init")
+        throw new Error(`directory ${dir} not found!`);
     let shallow_dirSize = 0;
     for (let i = 0; i < fileStructure[index_firstDepth].data.length; i++) {
         shallow_dirSize += fileStructure[index_firstDepth].data[i].fileSize;
     }
-    if (verbose) console.log(`Shallow size of directory ${dir} is ${shallow_dirSize}`);
-
+    if (verbose)
+        console.log(`Shallow size of directory ${dir} is ${shallow_dirSize}`);
     if (!ignoreSubDirs) {
         if (fileStructure[index_firstDepth].subdirectories.length > 0) {
             throw new Error("dir has subdirectories, counting deep size not implemented!");
         }
     }
-
     return shallow_dirSize;
 }
-
-function getSize_allDirectories(fileStructure: FileStructure, verbose?: boolean): BasicDirectory[] {
+function getSize_allDirectories(fileStructure, verbose) {
     //TODO give baseDirectory as parameter to make func universal
-    let dirsToDo: string[] = [];
-    let out: BasicDirectory[] = []
-
+    let dirsToDo = [];
+    let out = [];
     Object.entries(fileStructure).forEach((val, ind) => {
         let currDirectory = val[1].directory;
-        if (verbose) console.log(`Starting recursive getDirectorySize for: ${currDirectory}`);
+        if (verbose)
+            console.log(`Starting recursive getDirectorySize for: ${currDirectory}`);
         let currSize = getDirectorySize_deep_recursive(currDirectory, 0);
         out.push({ dirSize: currSize, dirName: currDirectory });
-    })
+    });
     return out;
-
     // local functions
-    function getDirectorySize_deep_recursive(dir: string, result_param?:number): number {
-        if (verbose) console.log(`getDirectorySize working on: ${dir}`);
+    function getDirectorySize_deep_recursive(dir, result_param) {
+        if (verbose)
+            console.log(`getDirectorySize working on: ${dir}`);
         let result_local = 0;
         result_local += result_param;
-
         // find dir in IOstructure
         let directory_index = "init";
         for (let ind in fileStructure) {
-            if (fileStructure[ind].directory === dir) directory_index = ind;
+            if (fileStructure[ind].directory === dir)
+                directory_index = ind;
         }
         if (directory_index === "init") {
             throw new Error(`directory ${dir} not found!`);
         }
-
         // process files
         for (let i = 0; i < fileStructure[directory_index].data.length; i++) {
             result_local += fileStructure[directory_index].data[i].fileSize;
         }
-
         // add subDirs to dirsToDo
         for (let ind in fileStructure[directory_index].subdirectories) {
             let next = dir;
-            if (next.slice(-1) !== "/") next = next.concat("/");
+            if (next.slice(-1) !== "/")
+                next = next.concat("/");
             dirsToDo.push(next.concat(fileStructure[directory_index].subdirectories[ind].directory));
         }
-
         // remove dir from dirsToDo
         for (let i = 0; i < dirsToDo.length; i++) {
-            if (dirsToDo[i] === dir) dirsToDo.splice(i, 1);
+            if (dirsToDo[i] === dir)
+                dirsToDo.splice(i, 1);
         }
-
         // check for recursion
         if (dirsToDo.length > 0) {
             return getDirectorySize_deep_recursive(dirsToDo[0], result_local);
-        } else {
+        }
+        else {
             return result_local;
         }
     }
 }
-
-main();
+setupFileStructure();
+solvePartOne();
+solvePartTwo();
+//# sourceMappingURL=day7_script.js.map
